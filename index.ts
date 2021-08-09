@@ -1,15 +1,8 @@
-import { config } from "https://deno.land/x/dotenv@v3.0.0/mod.ts";
 import {
   Adaptor,
-  Redirect,
   Song,
 } from "https://raw.githubusercontent.com/rycont/myply-common/main/index.ts";
-import "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/master/types/spotify-api/index.d.ts";
 import { PlaylistObjectFull } from "./types.ts";
-
-config({
-  export: true,
-});
 
 const endpoints = {
   getTokenFromCode: `https://accounts.spotify.com/api/token`,

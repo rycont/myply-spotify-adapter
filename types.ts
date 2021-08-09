@@ -90,7 +90,7 @@ interface PlaylistBaseObject extends ContextObject {
   name: string;
   owner: UserObjectPublic;
   public: boolean | null;
-  snapshot_id: string;
+  "snapshot_id": string;
   type: "playlist";
 }
 interface PagingObject<T> {
