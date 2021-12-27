@@ -2,9 +2,27 @@
   "dependencies": {
     "axios": "^0.24.0",
     "dotenv": "^10.0.0",
-    "myply-common": "https://github.com/rycont/myply-common"
+    "myply-common": "git+https://github.com/rycont/myply-common.git"
   },
   "devDependencies": {
     "@types/node": "^17.0.5"
-  }
+  },
+  "name": "myply-spotify-adapter",
+  "description": "For myply backend, on nextjs",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rycont/myply-spotify-adapter.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/rycont/myply-spotify-adapter/issues"
+  },
+  "homepage": "https://github.com/rycont/myply-spotify-adapter#readme"
 }
