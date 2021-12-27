@@ -79,85 +79,90 @@ export const AppleMusic = {
   },
 };
 
-export const SpotifyAdaptor: Adaptor = {
-  async findSongId(song) {
-    console.time("start");
-    const { token: masterToken } = await getMasterAccountToken();
+async function findSongId(song) {
+  console.time("start");
+  const { token: masterToken } = await getMasterAccountToken();
 
-    const res = (await axios(
-      endpoints.trackSearch(song.artist + " " + song.artist),
-      {
-        headers: {
-          Authorization: "Bearer " + masterToken,
-        }
+  const res = (await axios(
+    endpoints.trackSearch(song.artist + " " + song.artist),
+    {
+      headers: {
+        Authorization: "Bearer " + masterToken,
       }
-    )).data
+    }
+  )).data
 
-    return res.tracks.items[0].uri;
-  },
-  async generateURL(playlist) {
-    const masterToken = await getMasterAccountToken();
+  return res.tracks.items[0].uri;
+}
+async function generateURL(playlist) {
+  const masterToken = await getMasterAccountToken();
 
-    const { id: createdPlaylist, href: createdPlaylistUri } =
-      (await axios(
-        `https://api.spotify.com/v1/users/${process.env.MASTER_ACCOUNT_USER_ID}/playlists`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: "Bearer " + masterToken,
-            "Content-Type": "application/json",
-          },
-          data: {
-            name: playlist.title,
-            description: playlist.description,
-            public: true,
-            collaborative: false,
-          }
-        },
-      )).data
-
-    await axios(
-      `https://api.spotify.com/v1/playlists/${createdPlaylist}/tracks`,
+  const { id: createdPlaylist, href: createdPlaylistUri } =
+    (await axios(
+      `https://api.spotify.com/v1/users/${process.env.MASTER_ACCOUNT_USER_ID}/playlists`,
       {
+        method: "POST",
         headers: {
           Authorization: "Bearer " + masterToken,
           "Content-Type": "application/json",
         },
         data: {
-          uris: playlist.tracks.map((e) => e.channelIds.spotify),
-        },
-      },
-    );
-
-    return createdPlaylistUri;
-  },
-  async getPlaylistContent(playlistUri) {
-    const masterToken = await getMasterAccountToken();
-
-    const playlistId =
-      playlistUri.split("/playlist/")[1].split("/")[0].split("?")[0];
-
-    const playlist: PlaylistObjectFull =
-      (await axios(endpoints.getPlaylistContent(playlistId), {
-        headers: {
-          Authorization: "Bearer " + masterToken,
-        },
-      })).data
-
-    const koreanReplaced = await Promise.all(playlist.tracks.items.map(async ({ track }) => ({
-      ...(await AppleMusic.findSongInfo({
-        artist: track.artists.map(e => e.name).join(' '),
-        title: track.name,
-        channelIds: {
-          spotify: track.id
+          name: playlist.title,
+          description: playlist.description,
+          public: true,
+          collaborative: false,
         }
-      }) || {}),
-      channelIds: {
-        spotify: track.uri,
-      } as Record<string, string>,
-    })));
+      },
+    )).data
 
-    const filtered = koreanReplaced.filter((e): e is Song => e.title !== undefined)
-    return filtered
-  },
+  await axios(
+    `https://api.spotify.com/v1/playlists/${createdPlaylist}/tracks`,
+    {
+      headers: {
+        Authorization: "Bearer " + masterToken,
+        "Content-Type": "application/json",
+      },
+      data: {
+        uris: playlist.tracks.map((e) => e.channelIds.spotify),
+      },
+    },
+  );
+
+  return createdPlaylistUri;
+}
+async function getPlaylistContent(playlistUri) {
+  const masterToken = await getMasterAccountToken();
+
+  const playlistId =
+    playlistUri.split("/playlist/")[1].split("/")[0].split("?")[0];
+
+  const playlist: PlaylistObjectFull =
+    (await axios(endpoints.getPlaylistContent(playlistId), {
+      headers: {
+        Authorization: "Bearer " + masterToken,
+      },
+    })).data
+
+  const koreanReplaced = await Promise.all(playlist.tracks.items.map(async ({ track }) => ({
+    ...(await AppleMusic.findSongInfo({
+      artist: track.artists.map(e => e.name).join(' '),
+      title: track.name,
+      channelIds: {
+        spotify: track.id
+      }
+    }) || {}),
+    channelIds: {
+      spotify: track.uri,
+    } as Record<string, string>,
+  })));
+
+  const filtered = koreanReplaced.filter((e): e is Song => e.title !== undefined)
+  return filtered
+}
+
+export const SpotifyAdaptor: Adaptor = {
+  determinator: ["spotify"],
+  findSongId,
+  generateURL,
+  getPlaylistContent
 };

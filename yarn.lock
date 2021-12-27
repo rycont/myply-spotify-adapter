@@ -26,4 +26,4 @@ follow-redirects@^1.14.4:
 
 "myply-common@https://github.com/rycont/myply-common":
   version "0.0.0"
-  resolved "https://github.com/rycont/myply-common#b36bff2b41dde661145caf0a60ecae1694f467f6"
+  resolved "https://github.com/rycont/myply-common#0a34542fcfd5afb2cce1033a9be8ddc6a8b03c3f"
