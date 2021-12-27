@@ -1,8 +1,6 @@
-import {
-  Adaptor,
-  Song,
-} from "https://raw.githubusercontent.com/rycont/myply-common/main/index.ts";
-import { PlaylistObjectFull } from "./types.ts";
+import { Song, Adaptor } from "myply-common"
+import axios from "axios"
+import { PlaylistObjectFull } from "./types";
 
 const endpoints = {
   getTokenFromCode: `https://accounts.spotify.com/api/token`,
@@ -13,32 +11,27 @@ const endpoints = {
 };
 
 export const getMasterAccountToken = async () => {
-  const headers = new Headers({
-    "Authorization": "Basic " + btoa(
-      Deno.env.get("CLIENT_ID") + ":" + Deno.env.get("CLIENT_SECRET"),
-    ),
-  });
-
-  const body = new URLSearchParams({
-    grant_type: "refresh_token",
-    refresh_token: Deno.env.get("MASTER_ACCOUNT_REFRESH_TOKEN") || "",
-  });
-
-  const tokenInfo = await (await fetch(endpoints.getTokenFromCode, {
+  const tokenInfo = await axios(endpoints.getTokenFromCode, {
     method: "POST",
-    headers: headers,
-    body: body,
-  })).json();
+    headers: {
+      "Authorization": "Basic " + btoa(
+        process.env.CLIENT_ID + ":" + process.env.CLIENT_SECRET
+      )
+    },
+    params: {
+      grant_type: "refresh_token",
+      refresh_token: process.env.MASTER_ACCOUNT_REFRESH_TOKEN || "",
+    }
+  })
 
-  return { token: tokenInfo.access_token };
+  return { token: tokenInfo.data.access_token };
 };
 
 const nonLiteralCharacters = /[^가-힣-ㄱ-ㅎA-z0-9 ]/;
 
 export const AppleMusic = {
   async getTempToken(): Promise<string> {
-    const fetched = await (await fetch("https://music.apple.com/kr/search"))
-      .text();
+    const fetched = (await axios("https://music.apple.com/kr/search")).data
     const rawEnvironment = fetched.split(
       `name="desktop-music-app/config/environment"`,
     )[1].split(
@@ -48,17 +41,18 @@ export const AppleMusic = {
     return env.MEDIA_API.token;
   },
 
-  async findSongInfo(song: Omit<Song, "id">): Promise<Omit<Song, "id"> | null> {
+  async findSongInfo(song: Song): Promise<Song | null> {
     const token = await AppleMusic.getTempToken();
 
-    const headers = new Headers({
-      Authorization: "Bearer " + token,
-    });
+    const res = (await axios(
+      `https://amp-api.music.apple.com/v1/catalog/kr/search?term=${encodeURIComponent(song.artist + " " + song.title)}&l=ko-kr&types=songs`,
+      {
+        headers: {
+          Authorization: "Bearer " + token,
+        }
+      },
+    )).data
 
-    const res = await (await fetch(
-      `https://amp-api.music.apple.com/v1/catalog/us/search?term=${song.artist} ${song.title}&l=ko-kr&types=songs`,
-      { headers },
-    )).json();
     if (!res.results.songs) {
       if (!song.artist.match(nonLiteralCharacters)) return null;
       console.log(
@@ -70,12 +64,17 @@ export const AppleMusic = {
           nonLiteralCharacters,
           "",
         ),
+        channelIds: {}
       });
     }
     const koreanInfoSong = res.results.songs.data[0];
     return {
       artist: koreanInfoSong.attributes.artistName,
       title: koreanInfoSong.attributes.name,
+      channelIds: {
+        ...song.channelIds,
+        apple: koreanInfoSong.id,
+      }
     };
   },
 };
@@ -84,55 +83,49 @@ export const SpotifyAdaptor: Adaptor = {
   async findSongId(song) {
     console.time("start");
     const { token: masterToken } = await getMasterAccountToken();
-    const headers = new Headers({
-      Authorization: "Bearer " + masterToken,
-    });
 
-    const res = await (await fetch(
+    const res = (await axios(
       endpoints.trackSearch(song.artist + " " + song.artist),
       {
-        headers,
-      },
-    )).json();
+        headers: {
+          Authorization: "Bearer " + masterToken,
+        }
+      }
+    )).data
 
     return res.tracks.items[0].uri;
   },
   async generateURL(playlist) {
     const masterToken = await getMasterAccountToken();
 
-    const headers = new Headers({
-      Authorization: "Bearer " + masterToken,
-      "Content-Type": "application/json",
-    });
-
-    const body = JSON.stringify({
-      name: playlist.title,
-      description: playlist.description,
-      public: true,
-      collaborative: false,
-    });
-
     const { id: createdPlaylist, href: createdPlaylistUri } =
-      await (await fetch(
-        `https://api.spotify.com/v1/users/${
-          Deno.env.get("MASTER_ACCOUNT_USER_ID")
-        }/playlists`,
+      (await axios(
+        `https://api.spotify.com/v1/users/${process.env.MASTER_ACCOUNT_USER_ID}/playlists`,
         {
           method: "POST",
-          headers,
-          body,
+          headers: {
+            Authorization: "Bearer " + masterToken,
+            "Content-Type": "application/json",
+          },
+          data: {
+            name: playlist.title,
+            description: playlist.description,
+            public: true,
+            collaborative: false,
+          }
         },
-      )).json();
+      )).data
 
-    const playlistBody = JSON.stringify({
-      uris: playlist.tracks.map((e) => e.id.spotify),
-    });
-
-    await fetch(
+    await axios(
       `https://api.spotify.com/v1/playlists/${createdPlaylist}/tracks`,
       {
-        headers,
-        body: playlistBody,
+        headers: {
+          Authorization: "Bearer " + masterToken,
+          "Content-Type": "application/json",
+        },
+        data: {
+          uris: playlist.tracks.map((e) => e.channelIds.spotify),
+        },
       },
     );
 
@@ -140,24 +133,26 @@ export const SpotifyAdaptor: Adaptor = {
   },
   async getPlaylistContent(playlistUri) {
     const masterToken = await getMasterAccountToken();
-    const headers = new Headers({
-      Authorization: "Bearer " + masterToken,
-    });
 
     const playlistId =
       playlistUri.split("/playlist/")[1].split("/")[0].split("?")[0];
 
     const playlist: PlaylistObjectFull =
-      await (await fetch(endpoints.getPlaylistContent(playlistId), {
-        headers,
-      })).json();
+      (await axios(endpoints.getPlaylistContent(playlistId), {
+        headers: {
+          Authorization: "Bearer " + masterToken,
+        },
+      })).data
 
     const koreanReplaced = await Promise.all(playlist.tracks.items.map(async ({ track }) => ({
       ...(await AppleMusic.findSongInfo({
         artist: track.artists.map(e => e.name).join(' '),
-        title: track.name
+        title: track.name,
+        channelIds: {
+          spotify: track.id
+        }
       }) || {}),
-      id: {
+      channelIds: {
         spotify: track.uri,
       } as Record<string, string>,
     })));

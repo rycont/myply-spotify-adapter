@@ -1,9 +1,12 @@
-import { AppleMusic, SpotifyAdaptor } from "./index.ts";
+import dotenv from "dotenv"
+import { AppleMusic, SpotifyAdaptor } from ".";
+
+dotenv.config()
 
 SpotifyAdaptor?.findSongId?.({
     artist: "10CM",
     title: "서울의 잠 못 이루는 밤 (Feat. 이수현)",
-    id: {}
+    channelIds: {}
 }).then(e => {
     console.log(e)
     console.timeEnd('start')
@@ -11,5 +14,6 @@ SpotifyAdaptor?.findSongId?.({
 
 AppleMusic.findSongInfo({
     artist: "10cm, 이수현",
-    title: "Sleepless in Seoul (Feat. LEE SUHYEON)"
+    title: "Sleepless in Seoul (Feat. LEE SUHYEON)",
+    channelIds: {}
 }).then(console.log)

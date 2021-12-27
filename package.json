@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "axios": "^0.24.0",
+    "dotenv": "^10.0.0",
+    "myply-common": "https://github.com/rycont/myply-common"
+  },
+  "devDependencies": {
+    "@types/node": "^17.0.5"
+  }
+}
