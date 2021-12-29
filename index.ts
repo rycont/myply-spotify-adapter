@@ -1,4 +1,4 @@
-import { Song, Adaptor } from "myply-common"
+import { Song, Adaptor, Playlist } from "myply-common"
 import axios from "axios"
 import { PlaylistObjectFull } from "./types";
 
@@ -29,8 +29,11 @@ export const getMasterAccountToken = async () => {
 
 const nonLiteralCharacters = /[^가-힣-ㄱ-ㅎA-z0-9 ]/;
 
+let appleTokenCache: string | undefined
+
 export const AppleMusic = {
   async getTempToken(): Promise<string> {
+    if (appleTokenCache) return appleTokenCache
     const fetched = (await axios("https://music.apple.com/kr/search")).data
     const rawEnvironment = fetched.split(
       `name="desktop-music-app/config/environment"`,
@@ -38,14 +41,18 @@ export const AppleMusic = {
       '">',
     )[0].slice(10);
     const env = JSON.parse(decodeURIComponent(rawEnvironment));
-    return env.MEDIA_API.token;
+    appleTokenCache = env.MEDIA_API.token
+    setTimeout(() => appleTokenCache = undefined, 1000 * 60)
+
+    return appleTokenCache!;
   },
 
   async findSongInfo(song: Song): Promise<Song | null> {
     const token = await AppleMusic.getTempToken();
 
+    console.log("Fetching Apple Search")
     const res = (await axios(
-      `https://amp-api.music.apple.com/v1/catalog/kr/search?term=${encodeURIComponent(song.artist + " " + song.title)}&l=ko-kr&types=songs`,
+      `https://amp-api.music.apple.com/v1/catalog/kr/search?term=${encodeURIComponent(song.artist + " " + song.name)}&l=ko-kr&types=songs`,
       {
         headers: {
           Authorization: "Bearer " + token,
@@ -56,11 +63,11 @@ export const AppleMusic = {
     if (!res.results.songs) {
       if (!song.artist.match(nonLiteralCharacters)) return null;
       console.log(
-        song.title.replace(/\(.*?\)/, "").replace(nonLiteralCharacters, ""),
+        song.name.replace(/\(.*?\)/, "").replace(nonLiteralCharacters, ""),
       );
       return await AppleMusic.findSongInfo({
         artist: song.artist.replace(nonLiteralCharacters, ""),
-        title: song.title.replace(/\(.*?\)/, "").replace(
+        name: song.name.replace(/\(.*?\)/, "").replace(
           nonLiteralCharacters,
           "",
         ),
@@ -70,7 +77,7 @@ export const AppleMusic = {
     const koreanInfoSong = res.results.songs.data[0];
     return {
       artist: koreanInfoSong.attributes.artistName,
-      title: koreanInfoSong.attributes.name,
+      name: koreanInfoSong.attributes.name,
       channelIds: {
         ...song.channelIds,
         apple: koreanInfoSong.id,
@@ -79,10 +86,11 @@ export const AppleMusic = {
   },
 };
 
-async function findSongId(song) {
+async function findSongId(song: Song) {
   console.time("start");
   const { token: masterToken } = await getMasterAccountToken();
 
+  console.log("Fetching Spotify Search")
   const res = (await axios(
     endpoints.trackSearch(song.artist + " " + song.artist),
     {
@@ -94,9 +102,10 @@ async function findSongId(song) {
 
   return res.tracks.items[0].uri;
 }
-async function generateURL(playlist) {
+async function generateURL(playlist: Playlist) {
   const masterToken = await getMasterAccountToken();
 
+  console.log("Createing Playlist")
   const { id: createdPlaylist, href: createdPlaylistUri } =
     (await axios(
       `https://api.spotify.com/v1/users/${process.env.MASTER_ACCOUNT_USER_ID}/playlists`,
@@ -107,7 +116,7 @@ async function generateURL(playlist) {
           "Content-Type": "application/json",
         },
         data: {
-          name: playlist.title,
+          name: playlist.name,
           description: playlist.description,
           public: true,
           collaborative: false,
@@ -115,6 +124,7 @@ async function generateURL(playlist) {
       },
     )).data
 
+  console.log("Putting Tracks in")
   await axios(
     `https://api.spotify.com/v1/playlists/${createdPlaylist}/tracks`,
     {
@@ -130,34 +140,43 @@ async function generateURL(playlist) {
 
   return createdPlaylistUri;
 }
-async function getPlaylistContent(playlistUri) {
+async function getPlaylistContent(playlistUri: string): Promise<Playlist> {
   const masterToken = await getMasterAccountToken();
 
   const playlistId =
     playlistUri.split("/playlist/")[1].split("/")[0].split("?")[0];
 
-  const playlist: PlaylistObjectFull =
-    (await axios(endpoints.getPlaylistContent(playlistId), {
-      headers: {
-        Authorization: "Bearer " + masterToken,
-      },
-    })).data
+  try {
+    const playlist: PlaylistObjectFull =
+      (await axios(endpoints.getPlaylistContent(playlistId), {
+        headers: {
+          Authorization: "Bearer " + masterToken.token,
+        },
+      })).data
 
-  const koreanReplaced = await Promise.all(playlist.tracks.items.map(async ({ track }) => ({
-    ...(await AppleMusic.findSongInfo({
-      artist: track.artists.map(e => e.name).join(' '),
-      title: track.name,
+    console.log(playlist)
+    const koreanReplaced = await Promise.all(playlist.tracks.items.map(async ({ track }) => ({
+      ...(await AppleMusic.findSongInfo({
+        artist: track.artists.map(e => e.name).join(' '),
+        name: track.name,
+        channelIds: {
+          spotify: track.id
+        }
+      }) || {}),
       channelIds: {
-        spotify: track.id
-      }
-    }) || {}),
-    channelIds: {
-      spotify: track.uri,
-    } as Record<string, string>,
-  })));
+        spotify: track.uri,
+      } as Record<string, string>,
+    })));
 
-  const filtered = koreanReplaced.filter((e): e is Song => e.title !== undefined)
-  return filtered
+    const filtered = koreanReplaced.filter((e): e is Song => e.name !== undefined)
+    return {
+      tracks: filtered,
+      name: playlist.name
+    }
+  } catch (e) {
+    console.log(e)
+    throw e
+  }
 }
 
 export const SpotifyAdaptor: Adaptor = {
