@@ -1,2 +1,5 @@
 # myply-spotify-adapter
-For myply backend, on deno
+
+For myply backend
+
+works with deno

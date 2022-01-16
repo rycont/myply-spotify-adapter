@@ -16,11 +16,16 @@ export const getMasterAccountToken = async () => {
         headers: {
             Authorization:
                 "Basic " +
-                btoa(process.env.CLIENT_ID + ":" + process.env.CLIENT_SECRET),
+                btoa(
+                    process.env.SPOTIFY_CLIENT_ID +
+                        ":" +
+                        process.env.SPOTIFY_CLIENT_SECRET
+                ),
         },
         params: {
             grant_type: "refresh_token",
-            refresh_token: process.env.MASTER_ACCOUNT_REFRESH_TOKEN || "",
+            refresh_token:
+                process.env.SPOTIFY_MASTER_ACCOUNT_REFRESH_TOKEN || "",
         },
     })
 
@@ -115,7 +120,7 @@ async function generateURL(playlist: Playlist) {
             external_urls: { spotify: createdPlaylistUri },
         } = (
             await axios(
-                `https://api.spotify.com/v1/users/${process.env.MASTER_ACCOUNT_USER_ID}/playlists`,
+                `https://api.spotify.com/v1/users/${process.env.SPOTIFY_MASTER_ACCOUNT_USER_ID}/playlists`,
                 {
                     method: "POST",
                     headers: {
