@@ -92,7 +92,9 @@ export const AppleMusic = {
     },
 }
 
-async function findSongId(song: Song) {
+const REGEX_FIND_BRAKET = /\(.*\)/
+
+async function findSongId(song: Song): Promise<string | null> {
     const { token: masterToken } = await getMasterAccountToken()
 
     const res = (
@@ -108,7 +110,22 @@ async function findSongId(song: Song) {
         )
     ).data
 
-    return res.tracks.items[0].uri
+    try {
+        return res.tracks.items[0].uri
+    } catch (e) {
+        if (song.name.match(REGEX_FIND_BRAKET)) {
+            return await findSongId({
+                ...song,
+                name: song.name.replace(REGEX_FIND_BRAKET, "").trim(),
+            })
+        }
+        console.log(
+            `Missed Match on Spotify`,
+            song.artist + " " + song.name,
+            (e as Error).message
+        )
+        return null
+    }
 }
 async function generateURL(playlist: Playlist) {
     const { token } = await getMasterAccountToken()
