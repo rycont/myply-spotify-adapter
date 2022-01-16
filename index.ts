@@ -2,6 +2,8 @@ import { Song, Adaptor, Playlist } from "myply-common"
 import axios from "axios"
 import { PlaylistObjectFull } from "./types"
 
+const converToBase64 = (str: string) => Buffer.from(str).toString("base64")
+
 const endpoints = {
     getTokenFromCode: `https://accounts.spotify.com/api/token`,
     trackSearch: (query: string) =>
@@ -16,7 +18,7 @@ export const getMasterAccountToken = async () => {
         headers: {
             Authorization:
                 "Basic " +
-                btoa(
+                converToBase64(
                     process.env.SPOTIFY_CLIENT_ID +
                         ":" +
                         process.env.SPOTIFY_CLIENT_SECRET
@@ -117,6 +119,12 @@ async function findSongId(song: Song): Promise<string | null> {
             return await findSongId({
                 ...song,
                 name: song.name.replace(REGEX_FIND_BRAKET, "").trim(),
+            })
+        }
+        if (song.artist) {
+            return await findSongId({
+                ...song,
+                artist: "",
             })
         }
         console.log(
